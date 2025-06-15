@@ -104,6 +104,7 @@ function DashboardPage() {
           <table className="table table-hover">
             <thead>
               <tr>
+                <th>Nome do Plano</th>
                 <th>Status</th>
                 <th>Versão</th>
                 <th>Proprietário</th>
@@ -117,6 +118,7 @@ function DashboardPage() {
               ) : pmos.length > 0 ? (
                 pmos.map(pmo => (
                   <tr key={pmo.id}>
+                    <td><strong>{pmo.nome_identificador}</strong></td>
                     <td><span className={`badge bg-${pmo.status === 'APROVADO' ? 'success' : 'secondary'}`}>{pmo.status}</span></td>
                     <td>{pmo.version}</td>
                     <td>{pmo.form_data?.secao_1_descricao_propriedade?.dados_cadastrais?.nome_produtor || 'N/A'}</td>
@@ -127,7 +129,7 @@ function DashboardPage() {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="5">Nenhum PMO encontrado.</td></tr>
+                <tr><td colSpan="5">Nenhum PMO encontrado. Clique em "Criar Novo PMO" para começarmos.</td></tr>
               )}
             </tbody>
           </table>
