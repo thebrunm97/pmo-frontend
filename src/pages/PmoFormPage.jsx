@@ -3,124 +3,291 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api';
-import Secao1 from '../components/PmoForm/Secao1';
 import { initialFormData } from '../utils/formData';
+import { deepMerge } from '../utils/deepMerge';
 
+// Importa os componentes de cada seção
+import Secao1 from '../components/PmoForm/Secao1';
+import Secao2 from '../components/PmoForm/Secao2';
+import Secao3 from '../components/PmoForm/Secao3';
+import Secao4 from '../components/PmoForm/Secao4';
+
+
+
+
+/**
+ * Prepara os dados do formulário para serem enviados à API.
+ * 1. Converte campos numéricos (que são strings nos inputs) para os tipos corretos (float, int).
+ * 2. Limpa campos de data opcionais, convertendo strings vazias para null.
+ * 3. Garante que o payload enviado corresponda exatamente ao que o serializer do DRF espera.
+ */
+
+const cleanFormDataForSubmission = (data) => {
+  const cleanedData = deepMerge({}, data);
+
+  const parseToFloatOrNull = (value) => {
+    if (value === '' || value === null || value === undefined) return null;
+    const num = parseFloat(String(value).replace(',', '.'));
+    return isNaN(num) ? null : num;
+  };
+
+  const parseToIntOrNull = (value) => {
+    if (value === '' || value === null || value === undefined) return null;
+    const num = parseInt(value, 10);
+    return isNaN(num) ? null : num;
+  };
+  
+  const isRowEmpty = (row) => {
+    if (!row || typeof row !== 'object') return true;
+    return Object.values(row).every(value => value === null || value === undefined || value === '');
+  };
+
+  // Processa uma seção inteira, limpando e convertendo os dados das tabelas
+  const processSectionTables = (sectionData, tableConfigs) => {
+    if (!sectionData) return;
+
+    for (const config of tableConfigs) {
+      const { path, conversions } = config;
+      
+      // Navega até o array de itens
+      let parent = sectionData;
+      for(let i = 0; i < path.length - 1; i++) {
+        parent = parent?.[path[i]];
+      }
+      
+      if (parent) {
+        const arrayKey = path[path.length - 1];
+        let items = parent[arrayKey];
+
+        if (items && Array.isArray(items)) {
+          // 1. Filtra as linhas vazias
+          let filteredItems = items.filter(item => !isRowEmpty(item));
+          
+          // 2. Converte os tipos das linhas restantes
+          filteredItems.forEach(item => {
+            if (conversions) {
+              conversions.forEach(conv => {
+                if (item.hasOwnProperty(conv.field)) {
+                  item[conv.field] = conv.parser(item[conv.field]);
+                }
+              });
+            }
+          });
+          
+          // Atualiza o array no objeto
+          parent[arrayKey] = filteredItems;
+        }
+      }
+    }
+  };
+
+  // Configuração para as tabelas da Seção 2
+  processSectionTables(cleanedData.secao_2_atividades_produtivas_organicas, [
+    { path: ['producao_primaria_vegetal', 'produtos_primaria_vegetal'], conversions: [{ field: 'area_plantada', parser: parseToFloatOrNull }, { field: 'producao_esperada_ano', parser: parseToFloatOrNull }] },
+    { path: ['producao_primaria_animal', 'animais_primaria_animal'], conversions: [{ field: 'n_de_animais', parser: parseToIntOrNull }, { field: 'area_externa', parser: parseToFloatOrNull }, { field: 'area_interna_instalacoes', parser: parseToFloatOrNull }, { field: 'media_de_peso_vivo', parser: parseToFloatOrNull }] },
+    { path: ['processamento_produtos_origem_vegetal', 'produtos_processamento_vegetal'], conversions: [] },
+    { path: ['processamento_produtos_origem_animal', 'produtos_processamento_animal'], conversions: [] }
+  ]);
+  
+  // Configuração para as tabelas da Seção 3
+  processSectionTables(cleanedData.secao_3_atividades_produtivas_nao_organicas, [
+    { path: ['producao_primaria_vegetal_nao_organica', 'produtos_primaria_vegetal_nao_organica'], conversions: [{ field: 'area_plantada', parser: parseToFloatOrNull }, { field: 'producao_esperada_ano', parser: parseToFloatOrNull }] },
+    { path: ['producao_primaria_animal_nao_organica', 'animais_primaria_animal_nao_organica'], conversions: [{ field: 'n_de_animais', parser: parseToIntOrNull }, { field: 'area_externa', parser: parseToFloatOrNull }, { field: 'area_interna_instalacoes', parser: parseToFloatOrNull }, { field: 'media_de_peso_vivo', parser: parseToFloatOrNull }] },
+    { path: ['processamento_produtos_origem_vegetal_nao_organico', 'produtos_processamento_vegetal_nao_organico'], conversions: [] },
+    { path: ['processamento_produtos_origem_animal_nao_organico', 'produtos_processamento_animal_nao_organico'], conversions: [] }
+  ]);
+  
+  // Configuração para as tabelas da Seção 4
+  processSectionTables(cleanedData.secao_4_animais_servico_subsistencia_companhia, [
+    { path: ['animais_servico', 'lista_animais_servico'], conversions: [{ field: 'quantidade', parser: parseToIntOrNull }] },
+    { path: ['animais_subsistencia_companhia_ornamentais', 'lista_animais_subsistencia'], conversions: [{ field: 'quantidade', parser: parseToIntOrNull }] }
+  ]);
+  
+  // Lógica para limpar a Seção 4 se a resposta for "Não"
+  const secao4Data = cleanedData.secao_4_animais_servico_subsistencia_companhia;
+  if (secao4Data && !secao4Data.ha_animais_servico_subsistencia_companhia?.ha_animais_servico_subsistencia_companhia) {
+    delete secao4Data.animais_servico;
+    delete secao4Data.animais_subsistencia_companhia_ornamentais;
+  }
+
+  // Lógica de Datas
+  const avaliacao = cleanedData.secao_avaliacao_plano_manejo;
+  if (avaliacao) {
+    if (avaliacao.espaco_oac && (avaliacao.espaco_oac.data_recebimento_plano_manejo === '' || avaliacao.espaco_oac.data_recebimento_plano_manejo === 'null')) {
+      avaliacao.espaco_oac.data_recebimento_plano_manejo = null;
+    }
+    if (avaliacao.status_documento && (avaliacao.status_documento.data_analise === '' || avaliacao.status_documento.data_analise === 'null')) {
+      avaliacao.status_documento.data_analise = null;
+    }
+  }
+
+  return cleanedData;
+};
+
+// --- Componente Principal ---
 function PmoFormPage() {
-  // Hooks do React Router para navegar e pegar parâmetros da URL
   const navigate = useNavigate();
-  const { pmoId } = useParams(); // Pega o ID da URL. Será 'undefined' se for a página de 'novo'
-
-  // Determina se estamos no modo de edição
+  const { pmoId } = useParams();
   const isEditMode = Boolean(pmoId);
 
-  // Estados do componente
+  // Define as seções em um array de configuração para tornar o código mais dinâmico
+  const formSections = [
+    { id: 1, key: 'secao_1_descricao_propriedade', Component: Secao1 },
+    { id: 2, key: 'secao_2_atividades_produtivas_organicas', Component: Secao2 },
+    { id: 3, key: 'secao_3_atividades_produtivas_nao_organicas', Component: Secao3 },
+    { id: 4, key: 'secao_4_animais_servico_subsistencia_companhia', Component: Secao4 },
+  ];
+
+  const [currentStep, setCurrentStep] = useState(1);
+  const totalSteps = formSections.length; // O total de passos agora é dinâmico
+
   const [nomeIdentificador, setNomeIdentificador] = useState('');
   const [formData, setFormData] = useState(initialFormData);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Efeito que busca os dados do PMO SE estivermos em modo de edição
   useEffect(() => {
     if (isEditMode) {
       const fetchPmoData = async () => {
         setIsLoading(true);
         try {
           const response = await api.get(`/v1/pmos/${pmoId}/`);
-          const { nome_identificador, form_data } = response.data;
-          
-          // Preenche o formulário com os dados recebidos da API
+          const { nome_identificador, form_data: fetchedData } = response.data;
+          const mergedFormData = deepMerge(initialFormData, fetchedData);
           setNomeIdentificador(nome_identificador);
-          setFormData(form_data);
-
+          setFormData(mergedFormData);
         } catch (err) {
-          setError('Não foi possível carregar os dados deste PMO para edição.');
-          console.error(err);
+          setError('Não foi possível carregar os dados para edição.');
+          console.error("Erro ao buscar dados do PMO:", err);
         } finally {
           setIsLoading(false);
         }
       };
       fetchPmoData();
     }
-  }, [pmoId, isEditMode]); // Roda sempre que o ID na URL mudar
+  }, [pmoId, isEditMode]);
 
-  // Função para lidar com a submissão do formulário
   const handleFormSubmit = async (e) => {
+    
+        console.error("----------- FORM SUBMIT ACIONADO! -----------");
+        console.log("Tipo do evento em handleFormSubmit:", e.type);
+        console.log("Elemento alvo do evento:", e.target);
+        
+        // O debugger vai pausar a execução do código aqui.
+        debugger; 
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    // Prepara o payload com os dados do formulário
+    const cleanedData = cleanFormDataForSubmission(formData);
+
     const payload = {
       nome_identificador: nomeIdentificador,
-      form_data: formData,
+      form_data: cleanedData,
     };
 
     try {
       if (isEditMode) {
-        // MODO EDIÇÃO: Envia uma requisição PATCH para atualizar
         await api.patch(`/v1/pmos/${pmoId}/`, payload);
       } else {
-        // MODO CRIAÇÃO: Envia uma requisição POST para criar
-        // Adiciona os campos que só são necessários na criação
         payload.status = 'RASCUNHO';
         payload.version = 1;
         await api.post('/v1/pmos/', payload);
       }
-      
-      navigate('/'); // Navega de volta para o dashboard após o sucesso
-
+      navigate('/');
     } catch (err) {
       const errorData = err.response?.data ? JSON.stringify(err.response.data, null, 2) : err.message;
-      setError(`Erro ao salvar o PMO: ${errorData}`);
+      setError('Ocorreu um erro ao salvar. Verifique os campos obrigatórios e tente novamente.');
+      console.error("Erro de validação da API:", errorData);
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (isLoading && isEditMode) {
-    return <h2>Carregando dados para edição...</h2>;
-  }
+  const nextStep = (e) => {
+        console.log("----------- BOTÃO PRÓXIMO CLICADO! -----------");
+        console.log("Tipo do evento em nextStep:", e.type);
+
+        // Força a parada da propagação do evento. É uma medida de segurança.
+        e.stopPropagation(); 
+        e.preventDefault();
+
+        setCurrentStep(prev => (prev < totalSteps ? prev + 1 : prev));
+    };
+
+    const prevStep = () => setCurrentStep(prev => (prev > 1 ? prev - 1 : prev));
+    
+   
+  // Função de renderização refatorada para usar o array de configuração
+  const renderCurrentStepComponent = () => {
+    const currentSectionConfig = formSections.find(sec => sec.id === currentStep);
+
+    if (!currentSectionConfig) {
+      return <div key="secao-default">Seção {currentStep} não implementada.</div>;
+    }
+
+    const { Component, key: sectionKey } = currentSectionConfig;
+
+    const handleSectionChange = (newData) => {
+      setFormData(prev => ({ ...prev, [sectionKey]: newData }));
+    };
+
+    return (
+      <Component
+        key={sectionKey} // Chave para garantir a remontagem correta do componente
+        data={formData[sectionKey]}
+        onSectionChange={handleSectionChange}
+      />
+    );
+  };
+
+  if (isLoading && isEditMode) return <h2>Carregando dados para edição...</h2>;
 
   return (
     <div>
-      {/* O título da página agora é dinâmico */}
-      <h2>{isEditMode ? 'Editar Plano de Manejo' : 'Novo Plano de Manejo Orgânico'}</h2>
+      <h2>{isEditMode ? `Editando: ${nomeIdentificador}` : 'Novo Plano de Manejo Orgânico'}</h2>
       
-      <form onSubmit={handleFormSubmit} className="pmo-form">
-        <div className="card mb-3">
-          <div className="card-body">
-            <label htmlFor="nome_identificador" className="form-label"><strong>Nome de Identificação do Plano</strong></label>
-            <input
-              id="nome_identificador"
-              type="text"
-              className="form-control"
-              value={nomeIdentificador}
-              onChange={(e) => setNomeIdentificador(e.target.value)}
-              placeholder="Ex: Fazenda Boa Esperança - 2025"
-              required
-            />
-          </div>
+      <div className="progress mb-4" style={{height: "25px"}}>
+        <div className="progress-bar" style={{ width: `${(currentStep / totalSteps) * 100}%` }}>
+          Passo {currentStep} de {totalSteps}
         </div>
+      </div>
 
-        <Secao1
-          data={formData.secao_1_descricao_propriedade}
-          onSectionChange={(newData) =>
-            setFormData((prev) => ({ ...prev, secao_1_descricao_propriedade: newData }))
+       <form 
+        onSubmit={handleFormSubmit} 
+        className="pmo-form"
+        onKeyDown={(e) => {
+          // Se a tecla pressionada for "Enter"...
+          if (e.key === 'Enter') {
+            // ...impede que ela submeta o formulário.
+            e.preventDefault();
           }
-        />
-        
-        {/* Futuramente, os outros componentes de seção entrarão aqui */}
+        }}
+      >
+        {currentStep === 1 && (
+          <div className="card mb-3"><div className="card-body">
+            <label htmlFor="nome_identificador" className="form-label"><strong>Nome de Identificação do Plano</strong></label>
+            <input id="nome_identificador" type="text" className="form-control" value={nomeIdentificador} onChange={e => setNomeIdentificador(e.target.value)} required />
+          </div></div>
+        )}
+
+        {renderCurrentStepComponent()}
 
         {error && <div className="alert alert-danger mt-3">{error}</div>}
 
-        <div className="mt-3 form-actions">
-          <button type="submit" className="btn btn-primary" disabled={isLoading}>
-            {isLoading ? 'Salvando...' : (isEditMode ? 'Salvar Alterações' : 'Salvar Rascunho Inicial')}
+        <div className="mt-3 d-flex justify-content-between">
+          <button type="button" className="btn btn-secondary" 
+            onClick={prevStep} 
+            disabled={currentStep === 1}
+          >
+            ← Anterior
           </button>
-          <button type="button" className="btn btn-secondary ms-2" onClick={() => navigate('/')}>
-            Cancelar
-          </button>
+          
+          {currentStep < totalSteps ? (
+            <button type="button" className="btn btn-primary" onClick={nextStep}>Próximo →</button>
+          ) : (
+            <button type="submit" className="btn btn-success" disabled={isLoading}>{isLoading ? 'Salvando...' : 'Finalizar e Salvar'}</button>
+          )}
         </div>
       </form>
     </div>
