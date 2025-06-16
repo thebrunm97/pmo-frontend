@@ -11,7 +11,7 @@ import Secao1 from '../components/PmoForm/Secao1';
 import Secao2 from '../components/PmoForm/Secao2';
 import Secao3 from '../components/PmoForm/Secao3';
 import Secao4 from '../components/PmoForm/Secao4';
-
+import Secao5 from '../components/PmoForm/Secao5'; // Seção 5 (PRODUÇÃO TERCEIRIZADA)
 
 
 
@@ -109,7 +109,27 @@ const cleanFormDataForSubmission = (data) => {
     delete secao4Data.animais_servico;
     delete secao4Data.animais_subsistencia_companhia_ornamentais;
   }
+// <<< LÓGICA ADICIONADA PARA A SEÇÃO 5 >>>
+// ==========================================================
 
+const secao5Data = cleanedData.secao_5_producao_terceirizada;
+if (secao5Data?.produtos_terceirizados) {
+    let items = secao5Data.produtos_terceirizados;
+    
+    const isSecao5RowEmpty = (row) => {
+        return !row.fornecedor && !row.localidade && !row.produto && !row.quantidade_ano;
+    };
+    items = items.filter(item => !isSecao5RowEmpty(item));
+
+    items.forEach(item => {
+        item.quantidade_ano = parseToFloatOrNull(item.quantidade_ano);
+        if (item.processamento !== true && item.processamento !== false) {
+            item.processamento = null;
+        }
+    });
+
+    secao5Data.produtos_terceirizados = items;
+}
   // Lógica de Datas
   const avaliacao = cleanedData.secao_avaliacao_plano_manejo;
   if (avaliacao) {
@@ -136,6 +156,7 @@ function PmoFormPage() {
     { id: 2, key: 'secao_2_atividades_produtivas_organicas', Component: Secao2 },
     { id: 3, key: 'secao_3_atividades_produtivas_nao_organicas', Component: Secao3 },
     { id: 4, key: 'secao_4_animais_servico_subsistencia_companhia', Component: Secao4 },
+    { id: 5, key: 'secao_5_producao_terceirizada', Component: Secao5 }, // Seção 5 (PRODUÇÃO TERCEIRIZADA)
   ];
 
   const [currentStep, setCurrentStep] = useState(1);
