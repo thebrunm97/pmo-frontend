@@ -28,7 +28,7 @@ export const initialFormData = {
     },
     historico_propriedade_producao_organica: { historico_propriedade_producao_organica: '' },
     situacao_propriedade_relacao_producao_organica: { situacao_propriedade_producao_organica: '' },
-    // AQUI ESTÁ A CORREÇÃO PARA A SUBSEÇÃO 1.8
+    
     separacao_areas_producao_paralela: {
       descricao_separacao_areas_producao_paralela: '', // Para armazenar os checkboxes como string concatenada
       descricao_separacao_areas_producao_paralela_outros: '', // Para o campo 'Outros, citar'
@@ -72,20 +72,21 @@ export const initialFormData = {
   secao_5_producao_terceirizada: {
     aquisicao_produtos_terceiros: { produtos_terceirizados: [] },
   },
+  // ================== SEÇÃO 6 ASPECTOS AMBIENTAIS ==================
   secao_6_aspectos_ambientais: {
-    promocao_biodiversidade: { medidas_promocao_biodiversidade: '' },
-    fonte_agua: { fonte_agua: '' },
-    controle_uso_agua: { controle_uso_agua: '' },
-    risco_contaminacao_agua: {
-      ha_risco_contaminacao_agua: false,
-      qual_risco_contaminacao_agua: '',
-    },
-    riscos_contaminacao_unidade_producao: { riscos_contaminacao_unidade_producao: '' },
-    medidas_minimizar_riscos_contaminacao: { medidas_minimizar_riscos_contaminacao: '' },
-    praticas_manejo_residuos_organicos: { praticas_manejo_residuos_organicos: '' },
-    compostagem: { descricao_compostagem: '' },
-    tratamento_lixo: { tratamento_lixo: '' },
+    promocao_biodiversidade: '',
+    fonte_agua: '',
+    fonte_agua_subterranea_especificacao: '',
+    controle_uso_agua: '',
+    ha_risco_contaminacao_agua: null,
+    qual_risco_contaminacao_agua: '',
+    riscos_contaminacao_unidade_producao: '',
+    medidas_minimizar_riscos_contaminacao: '',
+    praticas_manejo_residuos_organicos: '',
+    compostagem: '',
+    tratamento_lixo: ''
   },
+  // =================== FIM DA CORREÇÃO ====================
   secao_7_aspectos_sociais: {
     membros_familia_producao: { membros_familia_producao: '' },
     mao_de_obra_nao_familiar: {

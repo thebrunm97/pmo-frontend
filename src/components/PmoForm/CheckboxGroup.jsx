@@ -1,31 +1,41 @@
 // src/components/PmoForm/CheckboxGroup.jsx
 import React from 'react';
 
-// Componente genérico para grupos de checkboxes
-function CheckboxGroup({ title, options, selectedData, onDataChange, otherField = false }) {
+function CheckboxGroup({ 
+  title, 
+  options, 
+  selectedString, 
+  onSelectionChange, 
+  otherOption, 
+  otherValue, 
+  onOtherChange,
+  otherName,
+  otherPlaceholder = "Por favor, especifique..." // Placeholder padrão
+}) {
   
   // Divide a string de dados em um array para verificar facilmente o que está selecionado
-  const selectedOptions = selectedData ? selectedData.split('; ') : [];
+  const selectedOptions = selectedString ? selectedString.split('; ').filter(Boolean) : [];
   
   const handleCheckboxChange = (e) => {
     const { value, checked } = e.target;
-    let newSelectedOptions = [...selectedOptions];
+    let newSelected = [...selectedOptions];
 
-    if (checked) {
-      if (!newSelectedOptions.includes(value)) {
-        newSelectedOptions.push(value);
-      }
+    if (checked && !newSelected.includes(value)) {
+      newSelected.push(value);
     } else {
-      newSelectedOptions = newSelectedOptions.filter(option => option !== value);
+      newSelected = newSelected.filter(option => option !== value);
     }
     
     // Junta o array de volta em uma string para salvar
-    onDataChange(newSelectedOptions.join('; '));
+    onSelectionChange(newSelected.join('; '));
   };
+
+  // Verifica se a opção que aciona o campo de texto está selecionada
+  const isOtherSelected = otherOption && selectedOptions.includes(otherOption);
 
   return (
     <div className="form-group mb-4">
-      <label className="form-label"><strong>{title}</strong></label>
+      <h5 className="card-title">{title}</h5>
       <div className="row">
         {options.map((option, index) => (
           <div className="col-md-6" key={index}>
@@ -45,13 +55,18 @@ function CheckboxGroup({ title, options, selectedData, onDataChange, otherField 
           </div>
         ))}
       </div>
-      {/* Se houver um campo "Outros", ele será renderizado aqui */}
-      {otherField && (
+      
+      {/* Se a opção "other" estiver selecionada, renderiza o campo de texto */}
+      {isOtherSelected && (
         <div className="mt-2">
-          <label className="form-label small">Outros - citar:</label>
-          {/* Este input requer uma lógica de state separada ou um manejo mais complexo,
-              por simplicidade, podemos usar um textarea simples por enquanto. */}
-          <textarea className="form-control" rows="2"></textarea>
+          <textarea 
+            name={otherName} // O nome do campo para o state
+            value={otherValue || ''} 
+            onChange={onOtherChange} 
+            className="form-control" 
+            rows="2"
+            placeholder={otherPlaceholder}
+          />
         </div>
       )}
     </div>
