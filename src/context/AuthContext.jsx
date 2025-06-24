@@ -2,19 +2,20 @@
 
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../supabaseClient'; // Importamos o supabase
+import { supabase } from '../supabaseClient';
 
-// 1. Criar o Contexto
 const AuthContext = createContext(null);
 
-// 2. Criar o Provedor do Contexto
+export function useAuth() {
+  return useContext(AuthContext);
+}
+
 export function AuthProvider({ children }) {
-  const [authToken, setAuthToken] = useState(() => localStorage.getItem('supabase.auth.token')); // Lendo o token do Supabase
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem('supabase.auth.token'));
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Função de logout centralizada
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
     setAuthToken(null);
@@ -22,7 +23,6 @@ export function AuthProvider({ children }) {
     navigate('/login');
   }, [navigate]);
 
-  // Efeito que roda na inicialização para verificar a sessão do usuário
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -35,7 +35,6 @@ export function AuthProvider({ children }) {
 
     checkUser();
 
-    // Ouvinte para mudanças no estado de autenticação (login, logout, etc.)
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setAuthToken(session?.access_token ?? null);
@@ -43,47 +42,47 @@ export function AuthProvider({ children }) {
       }
     );
 
-    // Função de limpeza para remover o ouvinte
     return () => {
       authListener?.subscription.unsubscribe();
     };
   }, []);
 
-
-  // Nova função de Login com Supabase
   const login = async (email, password) => {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
-      });
-
-      if (error) throw error;
-
-      console.log("Login com Supabase bem-sucedido:", data);
-      navigate('/');
-      return null;
-
-    } catch (err) {
-      console.error("Erro no login com Supabase:", err.message);
-      return err.message || "Falha no login. Verifique os dados.";
-    }
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
+    navigate('/');
+    return data;
   };
 
+  // =======================================================
+  // ||             INÍCIO DAS NOVAS FUNÇÕES              ||
+  // =======================================================
 
-  // Ouve por falhas de autenticação em chamadas da API (se ainda usar um interceptor customizado)
-  // Se o supabase-js já trata tudo, este pode não ser mais necessário, mas não faz mal manter
-  useEffect(() => {
-    const handleAuthError = () => {
-      console.log("Evento de erro de autenticação detectado. Deslogando...");
-      logout();
-    };
-    window.addEventListener('auth-error', handleAuthError);
-    return () => {
-      window.removeEventListener('auth-error', handleAuthError);
-    };
-  }, [logout]);
+  const signUp = async (email, password, profileData) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: profileData,
+      }
+    });
+    if (error) throw error;
+    return data;
+  };
 
+  const socialLogin = async (provider) => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: provider, // 'google', 'facebook', etc.
+    });
+    if (error) throw error;
+  };
+
+  // =======================================================
+  // ||               FIM DAS NOVAS FUNÇÕES                 ||
+  // =======================================================
 
   const value = {
     authToken,
@@ -91,6 +90,9 @@ export function AuthProvider({ children }) {
     isLoading,
     login,
     logout,
+    signUp, // <-- Expondo no contexto
+    loginWithGoogle: () => socialLogin('google'), // <-- Criando atalhos
+    loginWithFacebook: () => socialLogin('facebook'),
   };
 
   return (
@@ -98,9 +100,4 @@ export function AuthProvider({ children }) {
       {!isLoading && children}
     </AuthContext.Provider>
   );
-}
-
-// 4. Hook customizado para facilitar o uso do contexto (com o 'export' correto)
-export function useAuth() {
-  return useContext(AuthContext);
 }

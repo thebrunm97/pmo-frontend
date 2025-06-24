@@ -1,96 +1,170 @@
-// src/pages/PmoDetailPage.jsx
+// src/pages/PmoDetailPage_MUI.jsx
 
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { supabase } from '../supabaseClient'; // MUDANÇA 1: Importa o Supabase
-import Secao1 from '../components/PmoForm/Secao1';
-import { initialFormData } from '../utils/formData';
-import { deepMerge } from '../utils/deepMerge';
+import { useParams, useNavigate } from 'react-router-dom';
+import { supabase } from '../supabaseClient';
+import {
+  Box, Button, Card, CardContent, CardHeader, CircularProgress,
+  Grid, Typography, List, ListItem, ListItemText, Divider, Chip
+} from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
-function PmoDetailPage() {
+// Subcomponente para exibir um item de detalhe (label + valor)
+const DetailItem = ({ label, value, sx }) => (
+  <Box sx={sx}>
+    <Typography variant="caption" color="text.secondary" component="div">
+      {label}
+    </Typography>
+    <Typography variant="body1" component="div">
+      {value || 'Não informado'}
+    </Typography>
+  </Box>
+);
+
+// Subcomponente para exibir uma lista de itens de uma tabela
+const DetailTable = ({ title, items, columns }) => (
+  <Box mt={2}>
+    <Typography variant="subtitle1" gutterBottom>{title}</Typography>
+    {items && items.length > 0 ? (
+      <List dense>
+        {items.map((item, index) => (
+          <ListItem key={index} divider>
+            <ListItemText
+              primary={item[columns[0].key]}
+              secondary={
+                columns.slice(1).map(col => `${col.header}: ${item[col.key] || 'N/A'}`).join(' | ')
+              }
+            />
+          </ListItem>
+        ))}
+      </List>
+    ) : (
+      <Typography variant="body2" color="text.secondary">Nenhum item cadastrado.</Typography>
+    )}
+  </Box>
+);
+
+function PmoDetailPageMUI() {
   const { pmoId } = useParams();
-
+  const navigate = useNavigate();
   const [pmo, setPmo] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Efeito que busca os dados, agora usando Supabase
   useEffect(() => {
-    const fetchPmoDetails = async () => {
+    const fetchPmo = async () => {
+      setIsLoading(true);
       try {
-        setLoading(true);
-        
-        // MUDANÇA 2: Lógica de busca de dados com Supabase
         const { data, error: fetchError } = await supabase
-          .from('pmos')        // Da tabela 'pmos'
-          .select('*')       // Selecione todas as colunas
-          .eq('id', pmoId)   // Onde a coluna 'id' for igual ao pmoId da URL
-          .single();         // E retorne apenas um único resultado
+          .from('pmos')
+          .select('*')
+          .eq('id', pmoId)
+          .single();
 
-        if (fetchError) {
-          throw fetchError;
-        }
-
-        if (data) {
-          // A lógica de merge continua a ser uma boa prática
-          const mergedFormData = deepMerge(initialFormData, data.form_data);
-          setPmo({
-            ...data,
-            form_data: mergedFormData
-          });
-        }
-        
+        if (fetchError) throw fetchError;
+        setPmo(data);
       } catch (err) {
-        setError('Falha ao carregar os detalhes do PMO. Verifique se o PMO existe.');
-        console.error("Erro ao buscar detalhes do PMO:", err);
+        setError('Não foi possível carregar os detalhes deste PMO.');
+        console.error(err);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
-
-    fetchPmoDetails();
+    fetchPmo();
   }, [pmoId]);
 
-  // A lógica de renderização abaixo continua a mesma
-  if (loading) {
-    return <div className="text-center"><h2>Carregando...</h2></div>;
+  if (isLoading) {
+    return <Box sx={{ display: 'flex', justifyContent: 'center', my: 5 }}><CircularProgress /></Box>;
   }
 
   if (error) {
-    return <div className="alert alert-danger">{error}</div>;
+    return <Typography color="error">{error}</Typography>;
   }
 
   if (!pmo) {
-    return <div>Nenhum PMO encontrado.</div>;
+    return <Typography>Plano de Manejo não encontrado.</Typography>;
   }
+  
+  const d = pmo.form_data;
 
   return (
-    <div className="pmo-detail-page">
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h2>Detalhes do PMO</h2>
-        <Link to="/" className="btn btn-secondary">Voltar para o Dashboard</Link>
-      </div>
+    <Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, flexWrap: 'wrap', gap: 2 }}>
+        <Typography variant="h4" component="h1">{pmo.nome_identificador}</Typography>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/')}>
+            Voltar ao Painel
+          </Button>
+          <Button variant="contained" startIcon={<EditIcon />} onClick={() => navigate(`/pmo/${pmoId}/editar`)}>
+            Editar
+          </Button>
+        </Box>
+      </Box>
 
-      <div className="card bg-light p-3 mb-4">
-        <p className="mb-1"><strong>ID:</strong> {pmo.id}</p>
-        <p className="mb-1"><strong>Status:</strong> {pmo.status}</p>
-        <p className="mb-0"><strong>Versão:</strong> {pmo.version}</p>
-      </div>
+      <Grid container spacing={3}>
+        <Grid size={{ xs: 12, md: 5 }}>
+          <Card>
+            <CardHeader title="Informações Gerais" />
+            <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <DetailItem label="Status" value={<Chip label={pmo.status || 'RASCUNHO'} color="primary" />} />
+              <DetailItem label="Versão" value={pmo.version} />
+              <DetailItem label="Criado em" value={new Date(pmo.created_at).toLocaleString('pt-BR')} />
+              <DetailItem label="Produtor" value={d.secao_1_descricao_propriedade?.dados_cadastrais?.nome_produtor} />
+              <DetailItem label="CPF" value={d.secao_1_descricao_propriedade?.dados_cadastrais?.cpf} />
+              <DetailItem label="Responsável pelo Preenchimento" value={d.secao_1_descricao_propriedade?.dados_cadastrais?.responsavel_preenchimento} />
+            </CardContent>
+          </Card>
 
-      <Secao1 
-        data={pmo.form_data.secao_1_descricao_propriedade} 
-        onSectionChange={() => {}} // Função vazia, pois é apenas visualização
-      />
-      
-      {/* Aqui, no futuro, adicionaremos os componentes de visualização para Secao2, Secao3, etc. */}
+          <Card sx={{ mt: 3 }}>
+            <CardHeader title="Áreas da Propriedade (ha)" />
+            <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <DetailItem label="Área Orgânica" value={d.secao_1_descricao_propriedade?.area_propriedade?.area_producao_organica_hectares} />
+              <DetailItem label="Área em Conversão" value={d.secao_1_descricao_propriedade?.area_propriedade?.area_producao_em_conversao_hectares} />
+              <DetailItem label="Área Não-Orgânica" value={d.secao_1_descricao_propriedade?.area_propriedade?.area_producao_nao_organica_hectares} />
+              <Divider />
+              <DetailItem label="Área Total" value={d.secao_1_descricao_propriedade?.area_propriedade?.area_total_propriedade_hectares} sx={{fontWeight: 'bold'}} />
+            </CardContent>
+          </Card>
+        </Grid>
 
-      <div className="mt-4 text-end">
-        <Link to={`/pmo/${pmo.id}/editar`} className="btn btn-primary">
-          Editar este Plano
-        </Link>
-      </div>
-    </div>
+        <Grid size={{ xs: 12, md: 7 }}>
+          <Card>
+            <CardHeader title="Atividades Produtivas Orgânicas" />
+            <CardContent>
+              <DetailTable
+                title="Produção Vegetal"
+                items={d.secao_2_atividades_produtivas_organicas?.producao_primaria_vegetal?.produtos_primaria_vegetal}
+                columns={[{ key: 'produto', header: 'Produto' }, { key: 'producao_esperada_ano', header: 'Produção Esperada/Ano' }]}
+              />
+              <Divider sx={{my:2}}/>
+              <DetailTable
+                title="Produção Animal"
+                items={d.secao_2_atividades_produtivas_organicas?.producao_primaria_animal?.animais_primaria_animal}
+                columns={[{ key: 'especie', header: 'Espécie' }, { key: 'n_de_animais', header: 'Nº de Animais' }]}
+              />
+            </CardContent>
+          </Card>
+          
+           <Card sx={{ mt: 3 }}>
+            <CardHeader title="Anexos" />
+            <CardContent>
+                 <List dense>
+                    {(d.secao_18_anexos?.lista_anexos || []).map((anexo, index) => (
+                        <ListItem key={index} component="a" href={anexo.url_arquivo} target="_blank" rel="noopener noreferrer" button>
+                            <ListItemText primary={anexo.nome_documento} secondary={anexo.url_arquivo}/>
+                        </ListItem>
+                    ))}
+                    {(!d.secao_18_anexos?.lista_anexos || d.secao_18_anexos.lista_anexos.length === 0) && (
+                        <Typography variant="body2" color="text.secondary">Nenhum anexo encontrado.</Typography>
+                    )}
+                 </List>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
   );
 }
 
-export default PmoDetailPage;
+export default PmoDetailPageMUI;
